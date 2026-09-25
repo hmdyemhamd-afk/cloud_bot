@@ -1,10 +1,28 @@
 import asyncio
 import os
 import re
+from threading import Thread
+from flask import Flask
 from telethon import TelegramClient, events, Button
 from telethon.tl.functions.channels import JoinChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
 from telethon.errors import UserAlreadyParticipantError, InviteHashExpiredError, InviteHashInvalidError
+
+# --- إعداد خادم Flask الوهمي لإبقاء البوت نشطاً على Render ---
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is running 24/7 successfully!"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = Thread(target=run_flask)
+    t.start()
+# -------------------------------------------------------------
 
 # قراءة بيانات الاتصال بأمان تام من البيئة السحابية أو القيم الافتراضية
 API_ID = int(os.environ.get("API_ID", 39019894))
@@ -87,7 +105,6 @@ async def handle_links(event):
         fail_count = 0
         
         for index, link in enumerate(links, start=1):
-            # فحص هل طلب المستخدم الإيقاف في هذه اللحظة؟
             if not active_tasks.get(user_id, False):
                 break
                 
@@ -118,7 +135,6 @@ async def handle_links(event):
                     fail_count += 1
                     await event.respond(f"[{index}/{len(links)}] ❌ فشل: {link}")
             
-            # فاصل زمني آمن لمنع الحظر
             if index < len(links) and active_tasks.get(user_id, False):
                 await asyncio.sleep(12)
                 
@@ -129,9 +145,11 @@ async def handle_links(event):
             f"▫️ روابط فاشلة: `{fail_count}`"
         )
 
-print("[+] البوت السحابي يعمل الآن بأعلى أمان وتوافقية...")
+print("[+] البوت السحابي مع سيرفر الويب يعمل الآن بأعلى أمان وتوافقية...")
 
 async def main():
+    # تشغيل خادم الويب في الخلفية أولاً
+    keep_alive()
     await client.start()
     await bot.run_until_disconnected()
 
