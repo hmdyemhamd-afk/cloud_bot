@@ -29,9 +29,8 @@ API_ID = int(os.environ.get("API_ID", 39019894))
 API_HASH = os.environ.get("API_HASH", "8afa7eeb02c1eef8b2f536e00cfd8157")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8835766089:AAHQ9mxL1j6C3cGMejcbUVWstS_aiQfUirY")
 
-# إطلاق عميل البوت وعميل المستخدم (UserBot)
+# إطلاق عميل البوت السحابي فقط باستخدام التوكن المعرّف مسبقاً
 bot = TelegramClient('bot_session', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
-client = TelegramClient('my_session', API_ID, API_HASH)
 
 # متجر لتخزين حالات المهام وزر الإيقاف
 active_tasks = {}
@@ -111,9 +110,9 @@ async def handle_links(event):
             try:
                 if '+' in link or 'joinchat' in link:
                     invite_hash = link.split('+')[-1] if '+' in link else link.split('/')[-1]
-                    await client(ImportChatInviteRequest(invite_hash))
+                    await bot(ImportChatInviteRequest(invite_hash))
                 else:
-                    await client(JoinChannelRequest(link))
+                    await bot(JoinChannelRequest(link))
                     
                 success_count += 1
                 await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام:\n{link}")
@@ -145,13 +144,8 @@ async def handle_links(event):
             f"▫️ روابط فاشلة: `{fail_count}`"
         )
 
-print("[+] البوت السحابي مع سيرفر الويب يعمل الآن بأعلى أمان وتوافقية...")
-
-async def main():
-    # تشغيل خادم الويب في الخلفية أولاً
+if __name__ == "__main__":
+    # تشغيل خادم الويب للحفاظ على نشاط السيرفر
     keep_alive()
-    await client.start()
-    await bot.run_until_disconnected()
-
-with client:
-    client.loop.run_until_complete(main())
+    print("[+] البوت السحابي مع سيرفر الويب يعمل الآن بأعلى أمان وتوافقية...")
+    bot.run_until_disconnected()
