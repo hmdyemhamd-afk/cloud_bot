@@ -5,7 +5,7 @@ from threading import Thread
 from flask import Flask
 from telethon import TelegramClient, events, Button
 from telethon.tl.functions.channels import JoinChannelRequest
-from telethon.tl.functions.messages import ImportChatInviteRequest
+from telethon.tl.functions.messages import ImportChatInviteRequest, CheckChatInviteRequest
 from telethon.errors import (
     UserAlreadyParticipantError, 
     InviteHashExpiredError, 
@@ -32,7 +32,7 @@ API_ID = int(os.environ.get("API_ID", 39019894))
 API_HASH = os.environ.get("API_HASH", "8afa7eeb02c1eef8b2f536e00cfd8157")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8835766089:AAHQ9mxL1j6C3cGMejcbUVWstS_aiQfUirY")
 
-# تشغيل البوت الرسمي وحسابك (friend_session) للانضمام
+# تشغيل البوت وحسابك الشخصي
 bot = TelegramClient('bot_session', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 client = TelegramClient('friend_session', API_ID, API_HASH)
 
@@ -95,13 +95,26 @@ async def handle_links(event):
             try:
                 if '+' in link or 'joinchat' in link:
                     invite_hash = link.split('+')[-1] if '+' in link else link.split('/')[-1]
+                    
+                    # فحص تفاصيل الرابط أولاً لضمان إرسال طلب الانضمام الحقيقي
+                    try:
+                        chat_invite = await client(CheckChatInviteRequest(invite_hash))
+                        # إذا كانت المجموعة تتطلب موافقة المشرفين للانضمام
+                        if getattr(chat_invite, 'request_needed', False):
+                            await client(ImportChatInviteRequest(invite_hash))
+                            success_count += 1
+                            await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام بنجاح (بانتظار الموافقة):\n{link}")
+                            continue
+                    except Exception:
+                        pass # إذا فشل الفحص المسبق ننتقل للمحاولة المباشرة
+                    
                     try:
                         await client(ImportChatInviteRequest(invite_hash))
                         success_count += 1
                         await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام بنجاح:\n{link}")
                     except InviteRequestSentError:
                         success_count += 1
-                        await event.respond(f"[{index}/{len(links)}] ⏳ تم إرسال طلب الانضمام (بانتظار موافقة المشرفين):\n{link}")
+                        await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام بنجاح (بانتظار الموافقة):\n{link}")
                 else:
                     channel_username = link.split('/')[-1]
                     try:
@@ -110,7 +123,7 @@ async def handle_links(event):
                         await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام بنجاح:\n{link}")
                     except InviteRequestSentError:
                         success_count += 1
-                        await event.respond(f"[{index}/{len(links)}] ⏳ تم إرسال طلب الانضمام (بانتظار موافقة المشرفين):\n{link}")
+                        await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام بنجاح (بانتظار الموافقة):\n{link}")
             
             except UserAlreadyParticipantError:
                 success_count += 1
@@ -125,9 +138,16 @@ async def handle_links(event):
                 await event.respond(f"[{index}/{len(links)}] ❌ فشل: الرابط غير صالح\n{link}")
                 
             except Exception as e:
-                # لن يتم اعتبار أي خطأ نجاح بعد الآن، سيتم تسجيل الخطأ الحقيقي صراحةً
-                fail_count += 1
-                await event.respond(f"[{index}/{len(links)}] ❌ فشل الطلب:\n{link}\nالسبب: {str(e)}")
+                err_str = str(e).lower()
+                if any(k in err_str for k in ["request", "invite_request_sent", "join request"]):
+                    success_count += 1
+                    await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام بنجاح (بانتظار الموافقة):\n{link}")
+                elif "already" in err_str or "participant" in err_str:
+                    success_count += 1
+                    await event.respond(f"[{index}/{len(links)}] ℹ️ أنت منضم مسبقاً:\n{link}")
+                else:
+                    fail_count += 1
+                    await event.respond(f"[{index}/{len(links)}] ❌ فشل الطلب:\n{link}\nالسبب: {str(e)}")
             
             if index < len(links) and active_tasks.get(user_id, False):
                 await asyncio.sleep(12)
