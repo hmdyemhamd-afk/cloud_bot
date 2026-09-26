@@ -13,7 +13,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "Bot is running 24/7 successfully!"
+    return "UserBot is running 24/7 successfully!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
@@ -27,27 +27,26 @@ def keep_alive():
 # قراءة بيانات الاتصال بأمان تام من البيئة السحابية أو القيم الافتراضية
 API_ID = int(os.environ.get("API_ID", 39019894))
 API_HASH = os.environ.get("API_HASH", "8afa7eeb02c1eef8b2f536e00cfd8157")
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "8835766089:AAHQ9mxL1j6C3cGMejcbUVWstS_aiQfUirY")
 
-# إطلاق عميل البوت السحابي فقط باستخدام التوكن المعرّف مسبقاً
-bot = TelegramClient('bot_session', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+# إطلاق عميل المستخدم (UserBot) السحابي باستخدام جلسة باسم 'my_session'
+client = TelegramClient('my_session', API_ID, API_HASH)
 
 # متجر لتخزين حالات المهام وزر الإيقاف
 active_tasks = {}
 
-@bot.on(events.NewMessage(pattern='/start'))
+@client.on(events.NewMessage(pattern='/start'))
 async def start(event):
     buttons = [
         [Button.inline("🚀 بدء التشغيل والتعليمات", b"start_info"), Button.inline("📥 إدخال روابط والانضمام", b"join_menu")]
     ]
     await event.respond(
-        "أهلاً بك في بوت إدارة مجموعاتك **MyGroups السحابي** 🛡️\n\n"
-        "هذا البوت يعمل 24/7 على السيرفر ومخصص لإدارة وانضمام المجموعات بكفاءة.\n"
+        "أهلاً بك في بوت إدارة مجموعاتك **MyGroups السحابي (UserBot)** 🛡️\n\n"
+        "هذا البوت يعمل 24/7 على السيرفر بصلاحيات حسابك الشخصي للانضمام السريع.\n"
         "اختر أحد الخيارات أدناه للبدء:",
         buttons=buttons
     )
 
-@bot.on(events.CallbackQuery(data=b"start_info"))
+@client.on(events.CallbackQuery(data=b"start_info"))
 async def start_info(event):
     await event.answer("البوت يعمل بكامل طاقته السحابية!", alert=True)
     await event.respond(
@@ -58,12 +57,12 @@ async def start_info(event):
         "4. يمكنك إيقاف العملية في أي وقت عبر زر الإيقاف."
     )
 
-@bot.on(events.CallbackQuery(data=b"join_menu"))
+@client.on(events.CallbackQuery(data=b"join_menu"))
 async def prompt_links(event):
     await event.respond("📥 **جاهز تماماً!**\nأرسل الآن رسالة نصية تحتوي على روابط المجموعات أو القنوات التي تريد الانضمام إليها:")
     await event.answer()
 
-@bot.on(events.CallbackQuery(data=b"stop_process"))
+@client.on(events.CallbackQuery(data=b"stop_process"))
 async def stop_process(event):
     user_id = event.sender_id
     if user_id in active_tasks:
@@ -73,7 +72,7 @@ async def stop_process(event):
     else:
         await event.answer("لا توجد عملية انضمام نشطة حالياً.", alert=True)
 
-@bot.on(events.NewMessage(incoming=True))
+@client.on(events.NewMessage(incoming=True))
 async def handle_links(event):
     if event.is_private and not event.raw_text.startswith('/'):
         user_id = event.sender_id
@@ -110,9 +109,10 @@ async def handle_links(event):
             try:
                 if '+' in link or 'joinchat' in link:
                     invite_hash = link.split('+')[-1] if '+' in link else link.split('/')[-1]
-                    await bot(ImportChatInviteRequest(invite_hash))
+                    await client(ImportChatInviteRequest(invite_hash))
                 else:
-                    await bot(JoinChannelRequest(link))
+                    channel_username = link.split('/')[-1]
+                    await client(JoinChannelRequest(channel_username))
                     
                 success_count += 1
                 await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام:\n{link}")
@@ -147,5 +147,6 @@ async def handle_links(event):
 if __name__ == "__main__":
     # تشغيل خادم الويب للحفاظ على نشاط السيرفر
     keep_alive()
-    print("[+] البوت السحابي مع سيرفر الويب يعمل الآن بأعلى أمان وتوافقية...")
-    bot.run_until_disconnected()
+    print("[+] UserBot السحابي مع سيرفر الويب يعمل الآن بأعلى أمان وتوافقية...")
+    client.start()
+    client.run_until_disconnected()
