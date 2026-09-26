@@ -27,9 +27,9 @@ API_ID = int(os.environ.get("API_ID", 39019894))
 API_HASH = os.environ.get("API_HASH", "8afa7eeb02c1eef8b2f536e00cfd8157")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8835766089:AAHQ9mxL1j6C3cGMejcbUVWstS_aiQfUirY")
 
-# تشغيل البوت الرسمي وحسابك الشخصي
+# تشغيل البوت الرسمي وحسابك الجديد (friend_session) للانضمام
 bot = TelegramClient('bot_session', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
-client = TelegramClient('my_session', API_ID, API_HASH)
+client = TelegramClient('friend_session', API_ID, API_HASH)
 
 # متجر لتخزين حالات المهام (لكل مستخدم مهامه وزر إيقافه)
 active_tasks = {}
