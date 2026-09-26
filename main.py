@@ -13,7 +13,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "UserBot is running 24/7 successfully!"
+    return "Bot is running 24/7 successfully!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
@@ -25,55 +25,44 @@ def keep_alive():
 
 API_ID = int(os.environ.get("API_ID", 39019894))
 API_HASH = os.environ.get("API_HASH", "8afa7eeb02c1eef8b2f536e00cfd8157")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8835766089:AAHQ9mxL1j6C3cGMejcbUVWstS_aiQfUirY")
 
-# استخدام ملف الجلسة المرفوع my_session.session
+# تشغيل البوت الرسمي وحسابك الشخصي
+bot = TelegramClient('bot_session', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 client = TelegramClient('my_session', API_ID, API_HASH)
 
+# متجر لتخزين حالات المهام (لكل مستخدم مهامه وزر إيقافه)
 active_tasks = {}
 
-@client.on(events.NewMessage(pattern='/start'))
+@bot.on(events.NewMessage(pattern='/start'))
 async def start(event):
     buttons = [
-        [Button.inline("🚀 بدء التشغيل والتعليمات", b"start_info"), Button.inline("📥 إدخال روابط والانضمام", b"join_menu")]
+        [Button.inline("📥 إدخال روابط والانضمام إليها", b"join_menu")]
     ]
-    await event.respond(
-        "أهلاً بك في بوت إدارة مجموعاتك **MyGroups السحابي (UserBot)** 🛡️\n\n"
-        "هذا البوت يعمل 24/7 بصلاحيات حسابك الشخصي للانضمام الفوري للروابط الخاصة والعامة.\n"
-        "اختر أحد الخيارات أدناه للبدء:",
-        buttons=buttons
-    )
+    await event.respond("أهلاً بك في بوت إدارة مجموعاتك **MyGroups**!\nاختر من الأزرار أدناه:", buttons=buttons)
 
-@client.on(events.CallbackQuery(data=b"start_info"))
-async def start_info(event):
-    await event.answer("UserBot يعمل بكامل طاقته السحابية!", alert=True)
-    await event.respond(
-        "ℹ️ **طريقة الاستخدام:**\n"
-        "1. اضغط على زر (إدخال روابط والانضمام).\n"
-        "2. أرسل رسالة تحتوي على روابط المجموعات (خاصة أو عامة).\n"
-        "3. سيبدأ حسابك بالانضمام تدريجياً وبأمان."
-    )
-
-@client.on(events.CallbackQuery(data=b"join_menu"))
+@bot.on(events.CallbackQuery(data=b"join_menu"))
 async def prompt_links(event):
-    await event.respond("📥 **جاهز تماماً!**\nأرسل الآن رسالة نصية تحتوي على روابط المجموعات أو القنوات:")
+    await event.respond("أرسل الآن رسالة تحتوي على روابط المجموعات التي تريد الانضمام إليها:")
     await event.answer()
 
-@client.on(events.CallbackQuery(data=b"stop_process"))
+@bot.on(events.CallbackQuery(data=b"stop_process"))
 async def stop_process(event):
     user_id = event.sender_id
     if user_id in active_tasks:
-        active_tasks[user_id] = False
+        active_tasks[user_id] = False  # إيقاف العملية
         await event.answer("⚠️ يتم إيقاف العملية الآن...", alert=True)
-        await event.edit("❌ **تم إيقاف عملية الانضمام بنجاح.**")
+        await event.edit("❌ **تم إيقاف عملية الانضمام بناءً على رغبتك.**")
     else:
-        await event.answer("لا توجد عملية انضمام نشطة حالياً.", alert=True)
+        await event.answer("لا توجد عملية نشطة حالياً.", alert=True)
 
-@client.on(events.NewMessage(incoming=True))
+@bot.on(events.NewMessage(incoming=True))
 async def handle_links(event):
     if event.is_private and not event.raw_text.startswith('/'):
         user_id = event.sender_id
         text = event.raw_text
         
+        # استخراج وتنقية الروابط بدقة
         raw_links = re.findall(r'(?:https?://)?t\.me/(?:\+|joinchat/)?[\w\d_-]+', text)
         links = []
         for rl in raw_links:
@@ -82,15 +71,16 @@ async def handle_links(event):
                 links.append(clean_link)
         
         if not links:
-            return
+            return  
             
         if user_id in active_tasks and active_tasks.get(user_id) == True:
-            await event.respond("⚠️ هناك عملية انضمام تعمل حالياً!")
+            await event.respond("⚠️ هناك عملية انضمام تعمل حالياً! اضغط على زر الإيقاف أولاً إن أردت بدء عملية جديدة.")
             return
 
         active_tasks[user_id] = True
+        
         stop_buttons = [[Button.inline("🛑 إيقاف العملية", b"stop_process")]]
-        await event.respond(f"🔍 تم استخراج **{len(links)}** رابط بنجاح. جارٍ الانضمام...", buttons=stop_buttons)
+        await event.respond(f"🔍 تم استخراج {len(links)} رابط. جارٍ بدء العمل...", buttons=stop_buttons)
         
         success_count = 0
         fail_count = 0
@@ -116,13 +106,13 @@ async def handle_links(event):
                 
             except (InviteHashExpiredError, InviteHashInvalidError):
                 fail_count += 1
-                await event.respond(f"[{index}/{len(links)}] ❌ فشل (رابط منتهي أو غير صالح):\n{link}")
+                await event.respond(f"[{index}/{len(links)}] ❌ فشل (رابط منتهي):\n{link}")
                 
             except Exception as e:
                 error_msg = str(e)
                 if "A request to join" in error_msg or "INVITE_REQUEST_SENT" in error_msg:
                     success_count += 1
-                    await event.respond(f"[{index}/{len(links)}] ⏳ طلب معلق بالموافقة:\n{link}")
+                    await event.respond(f"[{index}/{len(links)}] ⏳ طلب معلق (بانتظار الموافقة):\n{link}")
                 else:
                     fail_count += 1
                     await event.respond(f"[{index}/{len(links)}] ❌ فشل: {link}")
@@ -131,10 +121,10 @@ async def handle_links(event):
                 await asyncio.sleep(12)
                 
         active_tasks[user_id] = False
-        await event.respond(f"🏁 **انتهت العملية!**\n▫️ نجاح/معلق: `{success_count}`\n▫️ فاشل: `{fail_count}`")
+        await event.respond(f"🏁 **انتهت العملية!**\n- نجح / طلبات معلقة: {success_count}\n- فاشل: {fail_count}")
 
 if __name__ == "__main__":
     keep_alive()
-    print("[+] UserBot السحابي يعمل الآن...")
-    client.start()
-    client.run_until_disconnected()
+    print("[+] البوت يعمل الآن بنظام المهام السريعة وأزرار الإيقاف الفوري...")
+    with client:
+        client.loop.run_until_complete(bot.run_until_disconnected())
