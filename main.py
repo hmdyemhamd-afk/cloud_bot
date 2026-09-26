@@ -5,7 +5,7 @@ from threading import Thread
 from flask import Flask
 from telethon import TelegramClient, events, Button
 from telethon.tl.functions.channels import JoinChannelRequest
-from telethon.tl.functions.messages import ImportChatInviteRequest, CheckChatInviteRequest
+from telethon.tl.functions.messages import ImportChatInviteRequest
 from telethon.errors import (
     UserAlreadyParticipantError, 
     InviteHashExpiredError, 
@@ -83,7 +83,7 @@ async def handle_links(event):
         active_tasks[user_id] = True
         
         stop_buttons = [[Button.inline("🛑 إيقاف العملية", b"stop_process")]]
-        await event.respond(f"🔍 تم استخراج {len(links)} رابط. جارٍ معالجة الانضمام وتقديم الطلبات...", buttons=stop_buttons)
+        await event.respond(f"🔍 تم استخراج {len(links)} رابط. جارٍ معالجة الانضمام وتقديم الطلبات بدقة...", buttons=stop_buttons)
         
         success_count = 0
         fail_count = 0
@@ -116,27 +116,24 @@ async def handle_links(event):
                 success_count += 1
                 await event.respond(f"[{index}/{len(links)}] ℹ️ أنت منضم مسبقاً في هذه المجموعة:\n{link}")
                 
-            except (InviteHashExpiredError, InviteHashInvalidError):
+            except InviteHashExpiredError:
                 fail_count += 1
-                await event.respond(f"[{index}/{len(links)}] ❌ فشل (رابط منتهي أو غير صالح):\n{link}")
+                await event.respond(f"[{index}/{len(links)}] ❌ فشل: الرابط منتهي الصلاحية\n{link}")
+                
+            except InviteHashInvalidError:
+                fail_count += 1
+                await event.respond(f"[{index}/{len(links)}] ❌ فشل: الرابط غير صالح\n{link}")
                 
             except Exception as e:
-                err_str = str(e).lower()
-                if any(k in err_str for k in ["request", "invite_request_sent", "join request"]):
-                    success_count += 1
-                    await event.respond(f"[{index}/{len(links)}] ⏳ تم إرسال طلب الانضمام بنجاح:\n{link}")
-                elif "already" in err_str or "participant" in err_str:
-                    success_count += 1
-                    await event.respond(f"[{index}/{len(links)}] ℹ️ أنت منضم مسبقاً:\n{link}")
-                else:
-                    fail_count += 1
-                    await event.respond(f"[{index}/{len(links)}] ❌ فشل: {link}")
+                # لن يتم اعتبار أي خطأ نجاح بعد الآن، سيتم تسجيل الخطأ الحقيقي صراحةً
+                fail_count += 1
+                await event.respond(f"[{index}/{len(links)}] ❌ فشل الطلب:\n{link}\nالسبب: {str(e)}")
             
             if index < len(links) and active_tasks.get(user_id, False):
                 await asyncio.sleep(12)
                 
         active_tasks[user_id] = False
-        await event.respond(f"🏁 **انتهت العملية!**\n- نجح / طلبات معلقة: {success_count}\n- فاشل: {fail_count}")
+        await event.respond(f"🏁 **انتهت العملية!**\n- نجح / طلبات معلقة حقيقية: {success_count}\n- فاشل: {fail_count}")
 
 if __name__ == "__main__":
     keep_alive()
