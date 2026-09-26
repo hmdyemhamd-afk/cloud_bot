@@ -6,7 +6,12 @@ from flask import Flask
 from telethon import TelegramClient, events, Button
 from telethon.tl.functions.channels import JoinChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
-from telethon.errors import UserAlreadyParticipantError, InviteHashExpiredError, InviteHashInvalidError
+from telethon.errors import (
+    UserAlreadyParticipantError, 
+    InviteHashExpiredError, 
+    InviteHashInvalidError, 
+    InviteRequestSentError
+)
 
 # إعداد خادم Flask الوهمي لإبقاء السيرفر نشطاً على Render 24/7
 app = Flask('')
@@ -79,7 +84,7 @@ async def handle_links(event):
         active_tasks[user_id] = True
         
         stop_buttons = [[Button.inline("🛑 إيقاف العملية", b"stop_process")]]
-        await event.respond(f"🔍 تم استخراج {len(links)} رابط. جارٍ الانضمام وتقديم الطلبات...", buttons=stop_buttons)
+        await event.respond(f"🔍 تم استخراج {len(links)} رابط. جارٍ الانضمام وتقديم الطلبات بدقة...", buttons=stop_buttons)
         
         success_count = 0
         fail_count = 0
@@ -103,19 +108,17 @@ async def handle_links(event):
                 success_count += 1
                 await event.respond(f"[{index}/{len(links)}] ℹ️ منضم مسبقاً:\n{link}")
                 
+            except InviteRequestSentError:
+                success_count += 1
+                await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام بنجاح (بانتظار الموافقة):\n{link}")
+                
             except (InviteHashExpiredError, InviteHashInvalidError):
                 fail_count += 1
                 await event.respond(f"[{index}/{len(links)}] ❌ فشل (رابط منتهي أو غير صالح):\n{link}")
                 
             except Exception as e:
-                error_msg = str(e)
-                # التقاط حالات طلبات الانضمام المعلقة وتقديم الطلب بنجاح دون إظهارها كفشل
-                if any(x in error_msg.lower() for x in ["a request to join", "successfully requested", "invite_request_sent", "request"]):
-                    success_count += 1
-                    await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام (بانتظار الموافقة):\n{link}")
-                else:
-                    fail_count += 1
-                    await event.respond(f"[{index}/{len(links)}] ❌ فشل: {link}")
+                fail_count += 1
+                await event.respond(f"[{index}/{len(links)}] ❌ فشل: {link}")
             
             if index < len(links) and active_tasks.get(user_id, False):
                 await asyncio.sleep(12)
@@ -125,6 +128,6 @@ async def handle_links(event):
 
 if __name__ == "__main__":
     keep_alive()
-    print("[+] البوت يعمل الآن بكفاءة...")
+    print("[+] البوت يعمل بكفاءة تامة...")
     with client:
         client.loop.run_until_complete(bot.run_until_disconnected())
