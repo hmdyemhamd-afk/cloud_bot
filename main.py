@@ -84,7 +84,7 @@ async def handle_links(event):
         active_tasks[user_id] = True
         
         stop_buttons = [[Button.inline("🛑 إيقاف العملية", b"stop_process")]]
-        await event.respond(f"🔍 تم استخراج {len(links)} رابط. جارٍ الانضمام وتقديم الطلبات بدقة...", buttons=stop_buttons)
+        await event.respond(f"🔍 تم استخراج {len(links)} رابط. جارٍ الانضمام وتقديم الطلبات...", buttons=stop_buttons)
         
         success_count = 0
         fail_count = 0
@@ -102,23 +102,32 @@ async def handle_links(event):
                     await client(JoinChannelRequest(channel_username))
                     
                 success_count += 1
-                await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام:\n{link}")
+                await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام بنجاح:\n{link}")
             
             except UserAlreadyParticipantError:
                 success_count += 1
-                await event.respond(f"[{index}/{len(links)}] ℹ️ منضم مسبقاً:\n{link}")
+                await event.respond(f"[{index}/{len(links)}] ℹ️ أنت منضم مسبقاً في هذه المجموعة:\n{link}")
                 
             except InviteRequestSentError:
                 success_count += 1
-                await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام بنجاح (بانتظار الموافقة):\n{link}")
+                await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام (بانتظار موافقة المشرفين):\n{link}")
                 
             except (InviteHashExpiredError, InviteHashInvalidError):
                 fail_count += 1
                 await event.respond(f"[{index}/{len(links)}] ❌ فشل (رابط منتهي أو غير صالح):\n{link}")
                 
             except Exception as e:
-                fail_count += 1
-                await event.respond(f"[{index}/{len(links)}] ❌ فشل: {link}")
+                err_str = str(e).lower()
+                # التحقق الشامل من الأخطاء التي تعني إرسال طلب انضمام معلق
+                if any(k in err_str for k in ["request", "invite_request_sent", "join request"]):
+                    success_count += 1
+                    await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام بنجاح:\n{link}")
+                elif "already" in err_str or "participant" in err_str:
+                    success_count += 1
+                    await event.respond(f"[{index}/{len(links)}] ℹ️ أنت منضم مسبقاً:\n{link}")
+                else:
+                    fail_count += 1
+                    await event.respond(f"[{index}/{len(links)}] ❌ فشل الانضمام: {link} (السبب: {e})")
             
             if index < len(links) and active_tasks.get(user_id, False):
                 await asyncio.sleep(12)
