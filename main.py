@@ -6,7 +6,8 @@ from flask import Flask
 from telethon import TelegramClient, events, Button
 from telethon.tl.functions.channels import JoinChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
-from telethon.errors import UserAlreadyParticipantError, InviteHashExpiredError, InviteHashInvalidError
+from telethon.tl.functions.channels import ImportChatInviteRequest as ChannelsImportChatInviteRequest
+from telethon.errors import UserAlreadyParticipantError, InviteHashExpiredError, InviteHashInvalidError, ChannelsTooMuchError
 
 # إعداد خادم Flask الوهمي لإبقاء السيرفر نشطاً على Render 24/7
 app = Flask('')
@@ -31,7 +32,7 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "8835766089:AAHQ9mxL1j6C3cGMejcbUVWstS_a
 bot = TelegramClient('bot_session', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 client = TelegramClient('friend_session', API_ID, API_HASH)
 
-# متجر لتخزين حالات المهام (لكل مستخدم مهامه وزر إيقافه)
+# متجر لتخزين حالات المهام
 active_tasks = {}
 
 @bot.on(events.NewMessage(pattern='/start'))
@@ -43,14 +44,14 @@ async def start(event):
 
 @bot.on(events.CallbackQuery(data=b"join_menu"))
 async def prompt_links(event):
-    await event.respond("أرسل الآن رسالة تحتوي على روابط المجموعات التي تريد الانضمام إليها:")
+    await event.respond("أرسل الآن رسالة تحتوي على روابط المجموعات التي تريد الانضمام إليها أو طلب الانضمام لها:")
     await event.answer()
 
 @bot.on(events.CallbackQuery(data=b"stop_process"))
 async def stop_process(event):
     user_id = event.sender_id
     if user_id in active_tasks:
-        active_tasks[user_id] = False  # إيقاف العملية
+        active_tasks[user_id] = False
         await event.answer("⚠️ يتم إيقاف العملية الآن...", alert=True)
         await event.edit("❌ **تم إيقاف عملية الانضمام بناءً على رغبتك.**")
     else:
@@ -62,7 +63,6 @@ async def handle_links(event):
         user_id = event.sender_id
         text = event.raw_text
         
-        # استخراج وتنقية الروابط بدقة
         raw_links = re.findall(r'(?:https?://)?t\.me/(?:\+|joinchat/)?[\w\d_-]+', text)
         links = []
         for rl in raw_links:
@@ -74,13 +74,13 @@ async def handle_links(event):
             return  
             
         if user_id in active_tasks and active_tasks.get(user_id) == True:
-            await event.respond("⚠️ هناك عملية انضمام تعمل حالياً! اضغط على زر الإيقاف أولاً إن أردت بدء عملية جديدة.")
+            await event.respond("⚠️ هناك عملية انضمام تعمل حالياً! اضغط على زر الإيقاف أولاً.")
             return
 
         active_tasks[user_id] = True
         
         stop_buttons = [[Button.inline("🛑 إيقاف العملية", b"stop_process")]]
-        await event.respond(f"🔍 تم استخراج {len(links)} رابط. جارٍ بدء العمل...", buttons=stop_buttons)
+        await event.respond(f"🔍 تم استخراج {len(links)} رابط. جارٍ تقديم الطلبات والانضمام...", buttons=stop_buttons)
         
         success_count = 0
         fail_count = 0
@@ -92,13 +92,23 @@ async def handle_links(event):
             try:
                 if '+' in link or 'joinchat' in link:
                     invite_hash = link.split('+')[-1] if '+' in link else link.split('/')[-1]
-                    await client(ImportChatInviteRequest(invite_hash))
+                    try:
+                        await client(ImportChatInviteRequest(invite_hash))
+                    except Exception as invite_err:
+                        # محاولة تقديم طلب انضمام في حال كانت تتطلب موافقة المشرفين للرابط الخاص
+                        err_str = str(invite_err).lower()
+                        if "invite_request_sent" in err_str or "request" in err_str:
+                            raise invite_err # سيتم التقاطها كطلب معلق في الأسفل
+                        else:
+                            # محاولة بديلة عبر استدعاء الكيان مباشرة
+                            entity = await client.get_entity(link)
+                            await client(JoinChannelRequest(entity))
                 else:
                     channel_username = link.split('/')[-1]
                     await client(JoinChannelRequest(channel_username))
                     
                 success_count += 1
-                await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام:\n{link}")
+                await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام بنجاح:\n{link}")
             
             except UserAlreadyParticipantError:
                 success_count += 1
@@ -106,13 +116,14 @@ async def handle_links(event):
                 
             except (InviteHashExpiredError, InviteHashInvalidError):
                 fail_count += 1
-                await event.respond(f"[{index}/{len(links)}] ❌ فشل (رابط منتهي):\n{link}")
+                await event.respond(f"[{index}/{len(links)}] ❌ فشل (رابط منتهي أو غير صالح):\n{link}")
                 
             except Exception as e:
                 error_msg = str(e)
-                if "A request to join" in error_msg or "INVITE_REQUEST_SENT" in error_msg:
+                # التقاط حالات طلبات الانضمام وتأكيد إرسالها بنجاح
+                if any(x in error_msg.lower() for x in ["a request to join", "successfully requested", "invite_request_sent", "request"]):
                     success_count += 1
-                    await event.respond(f"[{index}/{len(links)}] ⏳ طلب معلق (بانتظار الموافقة):\n{link}")
+                    await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام بنجاح (بانتظار الموافقة):\n{link}")
                 else:
                     fail_count += 1
                     await event.respond(f"[{index}/{len(links)}] ❌ فشل: {link}")
@@ -121,10 +132,10 @@ async def handle_links(event):
                 await asyncio.sleep(12)
                 
         active_tasks[user_id] = False
-        await event.respond(f"🏁 **انتهت العملية!**\n- نجح / طلبات معلقة: {success_count}\n- فاشل: {fail_count}")
+        await event.respond(f"🏁 **انتهت العملية!**\n- نجاح / طلبات معلقة: {success_count}\n- فاشل: {fail_count}")
 
 if __name__ == "__main__":
     keep_alive()
-    print("[+] البوت يعمل الآن بنظام المهام السريعة وأزرار الإيقاف الفوري...")
+    print("[+] البوت يعمل الآن بنظام المهام وتجاوز طلبات الانضمام...")
     with client:
         client.loop.run_until_complete(bot.run_until_disconnected())
