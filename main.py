@@ -13,7 +13,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "UserBot is running 24/7 successfully!"
+    return "Bot is running 24/7 successfully!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
@@ -24,45 +24,46 @@ def keep_alive():
     t.start()
 # -------------------------------------------------------------
 
-# قراءة بيانات الاتصال بأمان تام من البيئة السحابية أو القيم الافتراضية
+# قراءة بيانات الاتصال وأمان البيئة السحابية
 API_ID = int(os.environ.get("API_ID", 39019894))
 API_HASH = os.environ.get("API_HASH", "8afa7eeb02c1eef8b2f536e00cfd8157")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8835766089:AAHQ9mxL1j6C3cGMejcbUVWstS_aiQfUirY")
 
-# إطلاق عميل المستخدم (UserBot) السحابي باستخدام جلسة باسم 'my_session'
-client = TelegramClient('my_session', API_ID, API_HASH)
+# إطلاق البوت الرسمي باستخدام التوكن حصراً (يعمل فوراً بدون جلسة أو رقم هاتف)
+bot = TelegramClient('bot_session', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 
 # متجر لتخزين حالات المهام وزر الإيقاف
 active_tasks = {}
 
-@client.on(events.NewMessage(pattern='/start'))
+@bot.on(events.NewMessage(pattern='/start'))
 async def start(event):
     buttons = [
         [Button.inline("🚀 بدء التشغيل والتعليمات", b"start_info"), Button.inline("📥 إدخال روابط والانضمام", b"join_menu")]
     ]
     await event.respond(
-        "أهلاً بك في بوت إدارة مجموعاتك **MyGroups السحابي (UserBot)** 🛡️\n\n"
-        "هذا البوت يعمل 24/7 على السيرفر بصلاحيات حسابك الشخصي للانضمام السريع.\n"
+        "أهلاً بك في بوت إدارة مجموعاتك **MyGroups السحابي** 🛡️\n\n"
+        "هذا البوت يعمل 24/7 على السيرفر ومخصص لإدارة وانضمام المجموعات بكفاءة.\n"
         "اختر أحد الخيارات أدناه للبدء:",
         buttons=buttons
     )
 
-@client.on(events.CallbackQuery(data=b"start_info"))
+@bot.on(events.CallbackQuery(data=b"start_info"))
 async def start_info(event):
     await event.answer("البوت يعمل بكامل طاقته السحابية!", alert=True)
     await event.respond(
         "ℹ️ **طريقة الاستخدام:**\n"
         "1. اضغط على زر (إدخال روابط والانضمام).\n"
         "2. أرسل رسالة تحتوي على روابط المجموعات (معاً أو متفرقة).\n"
-        "3. سيبدأ البوت بالانضمام تدريجياً مع فاصل أمان لحسابك.\n"
+        "3. سيبدأ البوت بالانضمام تدريجياً مع فاصل أمان.\n"
         "4. يمكنك إيقاف العملية في أي وقت عبر زر الإيقاف."
     )
 
-@client.on(events.CallbackQuery(data=b"join_menu"))
+@bot.on(events.CallbackQuery(data=b"join_menu"))
 async def prompt_links(event):
     await event.respond("📥 **جاهز تماماً!**\nأرسل الآن رسالة نصية تحتوي على روابط المجموعات أو القنوات التي تريد الانضمام إليها:")
     await event.answer()
 
-@client.on(events.CallbackQuery(data=b"stop_process"))
+@bot.on(events.CallbackQuery(data=b"stop_process"))
 async def stop_process(event):
     user_id = event.sender_id
     if user_id in active_tasks:
@@ -72,7 +73,7 @@ async def stop_process(event):
     else:
         await event.answer("لا توجد عملية انضمام نشطة حالياً.", alert=True)
 
-@client.on(events.NewMessage(incoming=True))
+@bot.on(events.NewMessage(incoming=True))
 async def handle_links(event):
     if event.is_private and not event.raw_text.startswith('/'):
         user_id = event.sender_id
@@ -109,10 +110,10 @@ async def handle_links(event):
             try:
                 if '+' in link or 'joinchat' in link:
                     invite_hash = link.split('+')[-1] if '+' in link else link.split('/')[-1]
-                    await client(ImportChatInviteRequest(invite_hash))
+                    await bot(ImportChatInviteRequest(invite_hash))
                 else:
                     channel_username = link.split('/')[-1]
-                    await client(JoinChannelRequest(channel_username))
+                    await bot(JoinChannelRequest(channel_username))
                     
                 success_count += 1
                 await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام:\n{link}")
@@ -147,6 +148,5 @@ async def handle_links(event):
 if __name__ == "__main__":
     # تشغيل خادم الويب للحفاظ على نشاط السيرفر
     keep_alive()
-    print("[+] UserBot السحابي مع سيرفر الويب يعمل الآن بأعلى أمان وتوافقية...")
-    client.start()
-    client.run_until_disconnected()
+    print("[+] البوت الرسمي السحابي يعمل الآن بكامل طاقته...")
+    bot.run_until_disconnected()
