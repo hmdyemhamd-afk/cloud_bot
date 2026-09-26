@@ -6,8 +6,7 @@ from flask import Flask
 from telethon import TelegramClient, events, Button
 from telethon.tl.functions.channels import JoinChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
-from telethon.tl.functions.channels import ImportChatInviteRequest as ChannelsImportChatInviteRequest
-from telethon.errors import UserAlreadyParticipantError, InviteHashExpiredError, InviteHashInvalidError, ChannelsTooMuchError
+from telethon.errors import UserAlreadyParticipantError, InviteHashExpiredError, InviteHashInvalidError
 
 # إعداد خادم Flask الوهمي لإبقاء السيرفر نشطاً على Render 24/7
 app = Flask('')
@@ -44,7 +43,7 @@ async def start(event):
 
 @bot.on(events.CallbackQuery(data=b"join_menu"))
 async def prompt_links(event):
-    await event.respond("أرسل الآن رسالة تحتوي على روابط المجموعات التي تريد الانضمام إليها أو طلب الانضمام لها:")
+    await event.respond("أرسل الآن رسالة تحتوي على روابط المجموعات التي تريد الانضمام إليها:")
     await event.answer()
 
 @bot.on(events.CallbackQuery(data=b"stop_process"))
@@ -80,7 +79,7 @@ async def handle_links(event):
         active_tasks[user_id] = True
         
         stop_buttons = [[Button.inline("🛑 إيقاف العملية", b"stop_process")]]
-        await event.respond(f"🔍 تم استخراج {len(links)} رابط. جارٍ تقديم الطلبات والانضمام...", buttons=stop_buttons)
+        await event.respond(f"🔍 تم استخراج {len(links)} رابط. جارٍ الانضمام وتقديم الطلبات...", buttons=stop_buttons)
         
         success_count = 0
         fail_count = 0
@@ -92,23 +91,13 @@ async def handle_links(event):
             try:
                 if '+' in link or 'joinchat' in link:
                     invite_hash = link.split('+')[-1] if '+' in link else link.split('/')[-1]
-                    try:
-                        await client(ImportChatInviteRequest(invite_hash))
-                    except Exception as invite_err:
-                        # محاولة تقديم طلب انضمام في حال كانت تتطلب موافقة المشرفين للرابط الخاص
-                        err_str = str(invite_err).lower()
-                        if "invite_request_sent" in err_str or "request" in err_str:
-                            raise invite_err # سيتم التقاطها كطلب معلق في الأسفل
-                        else:
-                            # محاولة بديلة عبر استدعاء الكيان مباشرة
-                            entity = await client.get_entity(link)
-                            await client(JoinChannelRequest(entity))
+                    await client(ImportChatInviteRequest(invite_hash))
                 else:
                     channel_username = link.split('/')[-1]
                     await client(JoinChannelRequest(channel_username))
                     
                 success_count += 1
-                await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام بنجاح:\n{link}")
+                await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام:\n{link}")
             
             except UserAlreadyParticipantError:
                 success_count += 1
@@ -120,10 +109,10 @@ async def handle_links(event):
                 
             except Exception as e:
                 error_msg = str(e)
-                # التقاط حالات طلبات الانضمام وتأكيد إرسالها بنجاح
+                # التقاط حالات طلبات الانضمام المعلقة وتقديم الطلب بنجاح دون إظهارها كفشل
                 if any(x in error_msg.lower() for x in ["a request to join", "successfully requested", "invite_request_sent", "request"]):
                     success_count += 1
-                    await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام بنجاح (بانتظار الموافقة):\n{link}")
+                    await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام (بانتظار الموافقة):\n{link}")
                 else:
                     fail_count += 1
                     await event.respond(f"[{index}/{len(links)}] ❌ فشل: {link}")
@@ -132,10 +121,10 @@ async def handle_links(event):
                 await asyncio.sleep(12)
                 
         active_tasks[user_id] = False
-        await event.respond(f"🏁 **انتهت العملية!**\n- نجاح / طلبات معلقة: {success_count}\n- فاشل: {fail_count}")
+        await event.respond(f"🏁 **انتهت العملية!**\n- نجح / طلبات معلقة: {success_count}\n- فاشل: {fail_count}")
 
 if __name__ == "__main__":
     keep_alive()
-    print("[+] البوت يعمل الآن بنظام المهام وتجاوز طلبات الانضمام...")
+    print("[+] البوت يعمل الآن بكفاءة...")
     with client:
         client.loop.run_until_complete(bot.run_until_disconnected())
