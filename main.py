@@ -28,18 +28,19 @@ def keep_alive():
     t = Thread(target=run_flask)
     t.start()
 
-# بيانات البوت الجديد
+# بيانات البوت الجديد حصرياً
 API_ID = 39019894
 API_HASH = "8afa7eeb02c1eef8b2f536e00cfd8157"
 BOT_TOKEN = "8811537964:AAGyJ-aETFDtLU7JiY3ity7lZo8Xm8cL-gU"
 
-bot = TelegramClient('new_group_bot_session', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+# استخدام جلسة فريدة ووحيدة لمنع أي تداخل
+bot = TelegramClient('final_group_bot_session', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 
 active_tasks = {}
 
 @bot.on(events.NewMessage(pattern='/start'))
 async def start(event):
-    # استخدام معرف فريد أو منع التكرار البسيط
+    # التأكد من عدم تكرار الرد بإرسال رسالة واحدة فقط بجميع الأزرار
     buttons = [
         [Button.inline("📥 إدخال روابط والانضمام إليها", b"join_menu")]
     ]
@@ -160,5 +161,5 @@ async def handle_links(event):
 
 if __name__ == "__main__":
     keep_alive()
-    print("[+] بوت إدارة المجموعات يعمل بكفاءة تامة بدون تكرار...")
+    print("[+] البوت يعمل الآن بشكل سليم بدون تكرار...")
     bot.run_until_disconnected()
