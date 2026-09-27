@@ -13,7 +13,7 @@ from telethon.errors import (
     InviteRequestSentError
 )
 
-# إعداد خادم سياسة التشغيل 24/7
+# إعداد خادم الويب 24/7
 app = Flask('')
 
 @app.route('/')
@@ -33,21 +33,21 @@ API_ID = 39019894
 API_HASH = "8afa7eeb02c1eef8b2f536e00cfd8157"
 BOT_TOKEN = "8811537964:AAGyJ-aETFDtLU7JiY3ity7lZo8Xm8cL-gU"
 
-# تشغيل البوت فقط بدون أي جلسة مستخدم معلقة
-bot = TelegramClient('pure_bot_session', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+bot = TelegramClient('new_group_bot_session', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 
 active_tasks = {}
 
 @bot.on(events.NewMessage(pattern='/start'))
 async def start(event):
+    # استخدام معرف فريد أو منع التكرار البسيط
     buttons = [
         [Button.inline("📥 إدخال روابط والانضمام إليها", b"join_menu")]
     ]
-    await event.respond("أهلاً بك في بوت إدارة مجموعاتك **New_my_group**!\nاختر من الأزرار أدناه:", buttons=buttons)
+    await event.respond("أهلاً بك في بوت إدارة مجموعاتك (New_my_group)!\nاختر من الأزرار أدناه للبدء:", buttons=buttons)
 
 @bot.on(events.CallbackQuery(data=b"join_menu"))
 async def prompt_links(event):
-    await event.respond("أرسل الآن رسالة تحتوي على روابط المجموعات التي تريد من البوت الانضمام إليها:")
+    await event.edit("أرسل الآن رسالة تحتوي على روابط المجموعات أو القنوات التي تريد الانضمام إليها:")
     await event.answer()
 
 @bot.on(events.CallbackQuery(data=b"stop_process"))
@@ -83,7 +83,7 @@ async def handle_links(event):
         active_tasks[user_id] = True
         
         stop_buttons = [[Button.inline("🛑 إيقاف العملية", b"stop_process")]]
-        await event.respond(f"🔍 تم استخراج {len(links)} رابط. جارٍ المعالجة الصحيحة...", buttons=stop_buttons)
+        await event.respond(f"🔍 تم استخراج {len(links)} رابط. جارٍ المعالجة...", buttons=stop_buttons)
         
         success_count = 0
         fail_count = 0
@@ -160,5 +160,5 @@ async def handle_links(event):
 
 if __name__ == "__main__":
     keep_alive()
-    print("[+] البوت يعمل بكفاءة تامة...")
+    print("[+] بوت إدارة المجموعات يعمل بكفاءة تامة بدون تكرار...")
     bot.run_until_disconnected()
