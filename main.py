@@ -28,9 +28,10 @@ def keep_alive():
     t = Thread(target=run_flask)
     t.start()
 
-API_ID = int(os.environ.get("API_ID", 39019894))
-API_HASH = os.environ.get("API_HASH", "8afa7eeb02c1eef8b2f536e00cfd8157")
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "8835766089:AAHQ9mxL1j6C3cGMejcbUVWstS_aiQfUirY")
+# قراءة البيانات مباشرة من متغيرات البيئة لضمان العمل مع التوكن الجديد
+API_ID = int(os.environ.get("API_ID"))
+API_HASH = os.environ.get("API_HASH")
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
 bot = TelegramClient('bot_session', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 client = TelegramClient('friend_session', API_ID, API_HASH)
@@ -95,10 +96,8 @@ async def handle_links(event):
                 if '+' in link or 'joinchat' in link:
                     invite_hash = link.split('+')[-1] if '+' in link else link.split('/')[-1]
                     
-                    # فحص تفاصيل الرابط أولاً لمعرفة ما إذا كان يتطلب موافقة أم لا
                     try:
                         invite_info = await client(CheckChatInviteRequest(invite_hash))
-                        # إذا كانت المجموعة تتطلب طلب انضمام بالموافقة
                         if getattr(invite_info, 'request_needed', False):
                             try:
                                 await client(ImportChatInviteRequest(invite_hash))
@@ -108,12 +107,10 @@ async def handle_links(event):
                                 success_count += 1
                                 await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام رسمياً:\n{link}")
                         else:
-                            # انضمام مباشر عادي
                             await client(ImportChatInviteRequest(invite_hash))
                             success_count += 1
                             await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام بنجاح:\n{link}")
                     except Exception:
-                        # محاولة مباشرة احتياطية في حال فشل الفحص
                         try:
                             await client(ImportChatInviteRequest(invite_hash))
                             success_count += 1
