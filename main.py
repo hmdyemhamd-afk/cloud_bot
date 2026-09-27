@@ -6,7 +6,6 @@ from flask import Flask
 from telethon import TelegramClient, events, Button
 from telethon.tl.functions.channels import JoinChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest, CheckChatInviteRequest
-from telethon.tl.functions.requests import ToggleJoinRequests  # في حال تطلب الأمر
 from telethon.errors import (
     UserAlreadyParticipantError, 
     InviteHashExpiredError, 
@@ -83,7 +82,7 @@ async def handle_links(event):
         active_tasks[user_id] = True
         
         stop_buttons = [[Button.inline("🛑 إيقاف العملية", b"stop_process")]]
-        await event.respond(f"🔍 تم استخراج {len(links)} رابط. جارٍ معالجة الانضمام الفعلي...", buttons=stop_buttons)
+        await event.respond(f"🔍 تم استخراج {len(links)} رابط. جارٍ المعالجة الصحيحة...", buttons=stop_buttons)
         
         success_count = 0
         fail_count = 0
@@ -96,22 +95,32 @@ async def handle_links(event):
                 if '+' in link or 'joinchat' in link:
                     invite_hash = link.split('+')[-1] if '+' in link else link.split('/')[-1]
                     
-                    # فحص تفاصيل الرابط أولاً لمعرفة ما إذا كان يتطلب موافقة مشرفين
+                    # فحص تفاصيل الرابط أولاً لمعرفة ما إذا كان يتطلب موافقة أم لا
                     try:
-                        chat_invite = await client(CheckChatInviteRequest(invite_hash))
-                        # محاولة الانضمام أو إرسال الطلب بشكل صريح عبر الهاش
+                        invite_info = await client(CheckChatInviteRequest(invite_hash))
+                        # إذا كانت المجموعة تتطلب طلب انضمام بالموافقة
+                        if getattr(invite_info, 'request_needed', False):
+                            try:
+                                await client(ImportChatInviteRequest(invite_hash))
+                                success_count += 1
+                                await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام بنجاح:\n{link}")
+                            except InviteRequestSentError:
+                                success_count += 1
+                                await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام رسمياً:\n{link}")
+                        else:
+                            # انضمام مباشر عادي
+                            await client(ImportChatInviteRequest(invite_hash))
+                            success_count += 1
+                            await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام بنجاح:\n{link}")
+                    except Exception:
+                        # محاولة مباشرة احتياطية في حال فشل الفحص
                         try:
                             await client(ImportChatInviteRequest(invite_hash))
                             success_count += 1
-                            await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام / إرسال الطلب بنجاح:\n{link}")
+                            await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام بنجاح:\n{link}")
                         except InviteRequestSentError:
                             success_count += 1
-                            await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام رسمياً:\n{link}")
-                    except Exception as invite_err:
-                        # محاولة بديلة مباشرة للتعامل مع المجموعات المقيدة
-                        await client(ImportChatInviteRequest(invite_hash))
-                        success_count += 1
-                        await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام بنجاح:\n{link}")
+                            await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام بنجاح:\n{link}")
                 else:
                     channel_username = link.split('/')[-1]
                     try:
