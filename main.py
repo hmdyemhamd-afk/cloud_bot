@@ -28,13 +28,14 @@ def keep_alive():
     t = Thread(target=run_flask)
     t.start()
 
-# قراءة البيانات مباشرة من متغيرات البيئة لضمان العمل مع التوكن الجديد
-API_ID = int(os.environ.get("API_ID"))
-API_HASH = os.environ.get("API_HASH")
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
+# البيانات الأساسية مع وضع التوكن الجديد مباشرة
+API_ID = int(os.environ.get("API_ID", "39019894"))
+API_HASH = os.environ.get("API_HASH", "8afa7eeb02c1eef8b2f536e00cfd8157")
+BOT_TOKEN = "8811537964:AAGyJ-aETFDtLU7JiY3ity7lZo8Xm8cL-gU"
 
-bot = TelegramClient('bot_session', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
-client = TelegramClient('friend_session', API_ID, API_HASH)
+# استخدام اسم جلسة جديد كلياً لمنع تداخل الملفات القديمة
+bot = TelegramClient('new_bot_session', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+client = TelegramClient('new_friend_session', API_ID, API_HASH)
 
 active_tasks = {}
 
@@ -43,7 +44,7 @@ async def start(event):
     buttons = [
         [Button.inline("📥 إدخال روابط والانضمام إليها", b"join_menu")]
     ]
-    await event.respond("أهلاً بك في بوت إدارة مجموعاتك **MyGroups**!\nاختر من الأزرار أدناه:", buttons=buttons)
+    await event.respond("أهلاً بك في بوت إدارة مجموعاتك **New_my_group**!\nاختر من الأزرار أدناه:", buttons=buttons)
 
 @bot.on(events.CallbackQuery(data=b"join_menu"))
 async def prompt_links(event):
