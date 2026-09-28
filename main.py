@@ -33,7 +33,7 @@ API_ID = 39019894
 API_HASH = "8afa7eeb02c1eef8b2f536e00cfd8157"
 BOT_TOKEN = "8811537964:AAGyJ-aETFDtLU7JiY3ity7lZo8Xm8cL-gU"
 
-# استخدام ملفات الجلسات الموجودة في مستودعك مباشرة
+# استخدام ملفات الجلسات الموجودة في مستودعك
 bot = TelegramClient('bot_session', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 client = TelegramClient('my_session', API_ID, API_HASH)
 
@@ -48,7 +48,7 @@ async def start(event):
 
 @bot.on(events.CallbackQuery(data=b"join_menu"))
 async def prompt_links(event):
-    await event.edit("أرسل الآن رسالة تحتوي على روابط المجموعات أو القنوات وسيقوم الحساب الشخصي بالانضمام وتقديم الطلبات وفحص العضوية بدقة:")
+    await event.edit("أرسل الآن رسالة تحتوي على روابط المجموعات أو القنوات وسيقوم الحساب الشخصي بالانضمام الحقيقي أو تقديم الطلب بدقة:")
     await event.answer()
 
 @bot.on(events.CallbackQuery(data=b"stop_process"))
@@ -84,7 +84,7 @@ async def handle_links(event):
         active_tasks[user_id] = True
         
         stop_buttons = [[Button.inline("🛑 إيقاف العملية", b"stop_process")]]
-        await event.respond(f"🔍 تم استخراج {len(links)} رابط. جارٍ فحص العضوية وتنفيذ الانضمام عبر الحساب الشخصي...", buttons=stop_buttons)
+        await event.respond(f"🔍 تم استخراج {len(links)} رابط. جارٍ الفحص والتنفيذ بدقة عالية عبر الحساب الشخصي...", buttons=stop_buttons)
         
         success_count = 0
         fail_count = 0
@@ -94,31 +94,46 @@ async def handle_links(event):
                 break
                 
             try:
+                # معالجة روابط الدعوة الخاصة (التي تحتوي على + أو joinchat)
                 if '+' in link or 'joinchat' in link:
                     invite_hash = link.split('+')[-1] if '+' in link else link.split('/')[-1]
                     
                     try:
-                        invite_info = await client(CheckChatInviteRequest(invite_hash))
-                        if getattr(invite_info, 'request_needed', False):
-                            try:
-                                await client(ImportChatInviteRequest(invite_hash))
-                                success_count += 1
-                                await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام رسمياً:\n{link}")
-                            except InviteRequestSentError:
-                                success_count += 1
-                                await event.respond(f"[{index}/{لقطعة}/{len(links)}] ⏳ تم تقديم طلب الانضمام رسمياً:\n{link}")
+                        # محاولة استخدام استيراد الرابط مباشرة
+                        await client(ImportChatInviteRequest(invite_hash))
+                        success_count += 1
+                        await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام بنجاح:\n{link}")
+                    except InviteRequestSentError:
+                        # المجموعة تتطلب موافقة المشرفين وتم إرسال الطلب فعلياً
+                        success_count += 1
+                        await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام بنجاح:\n{link}")
+                    except UserAlreadyParticipantError:
+                        success_count += 1
+                        await event.respond(f"[{index}/{len(links)}] ℹ️ أنت منضم مسبقاً في هذه المجموعة:\n{link}")
+                    except Exception as inner_e:
+                        # فحص تفصيلي للخطأ في حال تطلب الأمر فحص الدعوة أولاً
+                        err_msg = str(inner_e).lower()
+                        if "invite_request_sent" in err_msg or "request" in err_msg:
+                            success_count += 1
+                            await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام بنجاح:\n{link}")
+                        elif "already" in err_msg or "participant" in err_msg:
+                            success_count += 1
+                            await event.respond(f"[{index}/{len(links)}] ℹ️ أنت منضم مسبقاً:\n{link}")
                         else:
-                            await client(ImportChatInviteRequest(invite_hash))
-                            success_count += 1
-                            await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام بنجاح:\n{link}")
-                    except Exception:
-                        try:
-                            await client(ImportChatInviteRequest(invite_hash))
-                            success_count += 1
-                            await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام بنجاح:\n{link}")
-                        except InviteRequestSentError:
-                            success_count += 1
-                            await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام رسمياً:\n{link}")
+                            # محاولة بديلة عبر فحص الرابط إن فشل الاستيراد المباشر
+                            invite_info = await client(CheckChatInviteRequest(invite_hash))
+                            if getattr(invite_info, 'request_needed', False):
+                                try:
+                                    await client(ImportChatInviteRequest(invite_hash))
+                                    success_count += 1
+                                    await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام بنجاح:\n{link}")
+                                except InviteRequestSentError:
+                                    success_count += 1
+                                    await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام بنجاح:\n{link}")
+                            else:
+                                raise inner_e
+
+                # معالجة الروابط العامة (المعرفات مثل t.me/username)
                 else:
                     channel_username = link.split('/')[-1]
                     try:
@@ -127,23 +142,22 @@ async def handle_links(event):
                         await event.respond(f"[{index}/{len(links)}] ✅ تم الانضمام بنجاح:\n{link}")
                     except InviteRequestSentError:
                         success_count += 1
-                        await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام رسمياً:\n{link}")
+                        await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام بنجاح:\n{link}")
+                    except UserAlreadyParticipantError:
+                        success_count += 1
+                        await event.respond(f"[{index}/{len(links)}] ℹ️ أنت منضم مسبقاً في هذه المجموعة:\n{link}")
             
-            except UserAlreadyParticipantError:
-                success_count += 1
-                await event.respond(f"[{index}/{len(links)}] ℹ️ أنت منضم مسبقاً في هذه المجموعة:\n{link}")
-                
             except InviteHashExpiredError:
                 fail_count += 1
                 await event.respond(f"[{index}/{len(links)}] ❌ فشل: الرابط منتهي الصلاحية\n{link}")
                 
             except InviteHashInvalidError:
                 fail_count += 1
-                await event.respond(f"[{index}/{len(links)}] ❌ فشل: الرابط غير صالح\n{link}")
+                await event.respond(f"[{index}/{len(links)}] ❌ فشل: الرابط غير صالح أو خاطئ\n{link}")
                 
             except Exception as e:
                 err_str = str(e).lower()
-                if any(k in err_str for k in ["request", "invite_request_sent", "join request", "chat_write_forbidden"]):
+                if "invite_request_sent" in err_str or "request needed" in err_str or "join request" in err_str:
                     success_count += 1
                     await event.respond(f"[{index}/{len(links)}] ⏳ تم تقديم طلب الانضمام بنجاح:\n{link}")
                 elif "already" in err_str or "participant" in err_str:
@@ -151,8 +165,9 @@ async def handle_links(event):
                     await event.respond(f"[{index}/{len(links)}] ℹ️ أنت منضم مسبقاً:\n{link}")
                 else:
                     fail_count += 1
-                    await event.respond(f"[{index}/{len(links)}] ❌ فشل:\n{link}\nالسبب: {str(e)}")
+                    await event.respond(f"[{index}/{len(links)}] ❌ فشل الانضمام:\n{link}\nالسبب: {str(e)}")
             
+            # مهلة زمنية بين كل رابط لمنع حظر الحساب من تيليجرام
             if index < len(links) and active_tasks.get(user_id, False):
                 await asyncio.sleep(12)
                 
@@ -161,6 +176,6 @@ async def handle_links(event):
 
 if __name__ == "__main__":
     keep_alive()
-    print("[+] البوت والحساب الشخصي يعملان معاً باستخدام الجلسات الموجودة...")
+    print("[+] البوت والحساب الشخصي يعملان بدقة عالية...")
     with client:
         client.loop.run_until_complete(bot.run_until_disconnected())
